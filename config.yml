@@ -1,0 +1,11 @@
+erdos_renye_net:
+    N: 10000
+    K: 4.0
+    randseed: 7454
+logging:
+    loggformat: '%(asctime)s %(name)s [%(levelname)s] %(message)s'
+    logglevel: 'INFO'
+barabasi_albert_net:
+    N: 10000
+    edges: 4
+    randseed: 7589
