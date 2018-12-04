@@ -8,7 +8,6 @@ import numpy as np
 from scipy import stats
 import time
 import os
-import random
 import itertools
 import seaborn as sns
 
@@ -41,9 +40,9 @@ def generate_erdos_reneye_network(n=100, k=4.0, save=False):
             "Iteration = %i, avg degree = %f" % (iteration, avgdegree)
         )
         # pick randomly a node
-        first_node = random.choice(list(ernetwork.nodes()))
+        first_node = np.random.choice(list(ernetwork.nodes()))
         # pick randomply another node
-        second_node = random.choice(list(ernetwork.nodes()))
+        second_node = np.random.choice(list(ernetwork.nodes()))
         # Make a link between nodes
         if first_node != second_node \
                 and first_node not in ernetwork.neighbors(second_node):
@@ -77,19 +76,18 @@ def generate_barabasi_albert_network(n=100, edges=4, save=False):
         banetwork.add_node(current_node)
         # Connect the new node
         prob = [d[1] / degreesum for d in banetwork.degree()]
-        cum = list(itertools.accumulate(prob))
-        neighbors = random.choices(
-            list(banetwork.nodes()), cum_weights=cum, k=4
+        neighbors = np.random.choice(
+            list(banetwork.nodes()), p=prob, size=4, replace=False
         )
         for neighbor in neighbors:
-            if neighbor not in banetwork.neighbors(current_node):
-                banetwork.add_edge(current_node, neighbor)
-                degreesum += 2
+            banetwork.add_edge(current_node, neighbor)
+            degreesum += 2
         # Updating counter variables
         current_node += 1
     if save:
         nx.draw(banetwork, with_labels=True, font_weight='bold')
-        plt.show()
+        plt.savefig(PLOTS_FOLDER + "banetwork_graph_" + TS + ".png")
+
     return banetwork
 
 
@@ -102,16 +100,16 @@ def plot_degree_dist(network, save=False):
     deg, cnt = zip(*degree_count.items())
 
     # Statistics
-    mean = r"$\mu=" + str(data.mean()) + "$"
-    std = r"$\sigma=" + str(data.std()) + "$"
+    mean = r"$\mu=" + str("{0:.2f}".format(data.mean())) + "$"
+    std = r"$\sigma=" + str("{0:.2f}".format(data.std())) + "$"
 
     sns.set_context("paper")
     sns.set_style("whitegrid")
 
     fig = sns.scatterplot(deg, cnt)
+    # Adding rug plot
+    sns.rugplot(degree_sequence, height=0.01, **{"color": "skyblue"})
 
-    # remove the top and right line in graph
-    # sns.despine()
     # Set the Title of the graph from here
     fig.axes.set_title('Degree distribution ' + mean + ', ' + std, size=12)
     # Set the xlabel of the graph from here
@@ -120,6 +118,9 @@ def plot_degree_dist(network, save=False):
     fig.set_ylabel("Frequency")
     # Set the ticklabel size and color of the graph from here
     fig.tick_params(labelsize=14, labelcolor="black")
+    # Set legends
+    fig.legend(labels=['Degree distrubution', 'Rug plot'])
+
     plt.show()
 
 
@@ -138,18 +139,20 @@ def plot_degree_dist_log_log(network):
     # Set the scale of the x-and y-axes
     ax.set(xscale="log", yscale="log")
 
-    fig = sns.scatterplot(deg, cnt,  ax=ax, color='skyblue')
-
-    # remove the top and right line in graph
-    # sns.despine()
+    fig = sns.scatterplot(deg, cnt,  ax=ax)
+    # Adding rug plot
+    sns.rugplot(degree_sequence, height=0.01, **{"color": "skyblue"})
     # Set the Title of the graph from here
     fig.axes.set_title('Degree distribution ', size=12)
     # Set the xlabel of the graph from here
-    fig.set_xlabel("Degree")
+    fig.set_xlabel("Degree (log)")
     # Set the ylabel of the graph from here
-    fig.set_ylabel("Frequency")
+    fig.set_ylabel("Frequency (log)")
     # Set the ticklabel size and color of the graph from here
     fig.tick_params(labelsize=14, labelcolor="black")
+    # Set legends
+    fig.legend(labels=['Degree distrubution', 'Rug plot'])
+
     plt.show()
 
 
@@ -157,10 +160,30 @@ def fit_normal_curve(network):
     """
     """
     degree_sequence = sorted([d for n, d in network.degree()], reverse=True)
+    data = np.array(degree_sequence)
+    # Statistics
+    mean = r"$\mu=" + str("{0:.2f}".format(data.mean())) + "$"
+    std = r"$\sigma=" + str("{0:.2f}".format(data.std())) + "$"
 
     sns.set_context("paper")
     sns.set_style("whitegrid")
-    sns.distplot(degree_sequence, fit=stats.norm, rug=True, kde=False)
+    fig = sns.distplot(
+        degree_sequence, fit=stats.norm, kde=False, fit_kws={'color': 'red'}
+    )
+
+    # Set the Title of the graph from here
+    fig.axes.set_title('Degree distribution', size=12)
+    # Set the xlabel of the graph from here
+    fig.set_xlabel("Degree")
+    # Set the ylabel of the graph from here
+    fig.set_ylabel("Frequency")
+    # Set the ticklabel size and color of the graph from here
+    fig.tick_params(labelsize=14, labelcolor="black")
+    # Set legends
+    fig.legend(
+        labels=['Normal curve fitted, '+mean + ' '+std, 'Degree distrubution']
+    )
+
     plt.show()
 
 
@@ -169,12 +192,30 @@ def fit_exp_curve(network):
     """
     degree_sequence = sorted([d for n, d in network.degree()], reverse=True)
 
-    sns.set_context("paper")
-    sns.set_style("whitegrid")
-    sns.distplot(degree_sequence, fit=stats.expon, rug=True, kde=False)
-    plt.show()
+    # Statistics
     loc, scale = stats.expon.fit(degree_sequence)
     logger.info("loc = %f, scale = %f" % (loc, scale))
+    lam = r"$\lambda=" + str("{0:.2f}".format(1.0/scale)) + "$"
+
+    sns.set_context("paper")
+    sns.set_style("whitegrid")
+    fig = sns.distplot(
+        degree_sequence, fit=stats.expon, kde=False, fit_kws={'color': 'red'}
+    )
+
+    # Set the Title of the graph from here
+    fig.axes.set_title('Degree distribution ', size=12)
+    # Set the xlabel of the graph from here
+    fig.set_xlabel("Degree")
+    # Set the ylabel of the graph from here
+    fig.set_ylabel("Frequency")
+    # Set the ticklabel size and color of the graph from here
+    fig.tick_params(labelsize=14, labelcolor="black")
+    # Set legends
+    fig.legend(
+        labels=['Exponential curve fitted ' + lam, 'Degree distribution'])
+
+    plt.show()
 
 
 def fit_least_square_curve(network):
@@ -198,20 +239,70 @@ def fit_least_square_curve(network):
     m, c = np.linalg.lstsq(A, cnt, rcond=None)[0]
     logger.info("m = %f, c = %f" % (m, c))
 
-    fig = sns.scatterplot(deg, cnt, ax=ax, color='skyblue')
+    fig = sns.scatterplot(deg, cnt, ax=ax)
 
-    plt.plot(deg, m*deg + c, 'r', label='Fitted line')
+    plt.plot(deg, m*deg + c, 'r')
 
     # remove the top and right line in graph
     # sns.despine()
     # Set the Title of the graph from here
     fig.axes.set_title('Degree distribution ', size=12)
     # Set the xlabel of the graph from here
-    fig.set_xlabel("Degree")
+    fig.set_xlabel("Degree (log)")
     # Set the ylabel of the graph from here
-    fig.set_ylabel("Frequency")
+    fig.set_ylabel("Frequency (log)")
     # Set the ticklabel size and color of the graph from here
     fig.tick_params(labelsize=14, labelcolor="black")
+    # Set legends
+    fig.legend(labels=['Least square curve fitted', 'Degree distrubution'])
+
+    plt.show()
+
+
+def plot_cumulative_dist(network):
+    """
+    """
+    degree_sequence = sorted([d for n, d in network.degree()], reverse=True)
+    data = collections.Counter(degree_sequence)
+    deg, cnt = zip(*data.items())
+    deg = np.array(deg)
+
+    # Cumultaive dist
+    nodesum = len(network.nodes())
+    cum = [c/nodesum for c in cnt]
+    cum = list(itertools.accumulate(cum))
+
+    sns.set_context("paper")
+    sns.set_style("whitegrid")
+
+    # Least square
+    A = np.vstack([deg, np.ones(len(deg))]).T
+    m, c = np.linalg.lstsq(A, cum, rcond=None)[0]
+    logger.info("m = %f, c = %f" % (m, c))
+
+    # Initialize figure and ax
+    fig, ax = plt.subplots()
+
+    # Set the scale of the x-and y-axes
+    ax.set(xscale="log", yscale="log")
+
+    fig = sns.scatterplot(deg, cum, ax=ax)
+
+    plt.plot(deg, m*deg + c, 'r')
+
+    # remove the top and right line in graph
+    # sns.despine()
+    # Set the Title of the graph from here
+    fig.axes.set_title('Cumulative Degree distribution ', size=12)
+    # Set the xlabel of the graph from here
+    fig.set_xlabel("Degree (log)")
+    # Set the ylabel of the graph from here
+    fig.set_ylabel("Frequency (log)")
+    # Set the ticklabel size and color of the graph from here
+    fig.tick_params(labelsize=14, labelcolor="black")
+    # Set legends
+    fig.legend(labels=['Least square curve fitted', 'Degree distrubution'])
+
     plt.show()
 
 
@@ -252,7 +343,7 @@ def main():
     args, conf = initialize()
     if "ernetwork" == args.network or "all" == args.network:
         ernconf = conf['erdos_renye_net']
-        random.seed(ernconf['randseed'])
+        np.random.seed(ernconf['randseed'])
         logger.info(
             "The algorithm is running with the following configuration: %s" % (
                 ernconf
@@ -265,7 +356,7 @@ def main():
         fit_normal_curve(ernetwork)
     if "banetwork" == args.network or "all" == args.network:
         banconf = conf['barabasi_albert_net']
-        random.seed(banconf['randseed'])
+        np.random.seed(banconf['randseed'])
         logger.info(
             "The algorithm is running with the following configuration: %s" % (
                 banconf
@@ -278,6 +369,7 @@ def main():
         fit_exp_curve(banetwork)
         plot_degree_dist_log_log(banetwork)
         fit_least_square_curve(banetwork)
+        plot_cumulative_dist(banetwork)
 
 
 if __name__ == "__main__":
