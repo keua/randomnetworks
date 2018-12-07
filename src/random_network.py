@@ -5,17 +5,25 @@ import yaml
 import argparse
 import collections
 import numpy as np
-from scipy import stats
 import time
 import os
 import itertools
 import seaborn as sns
+import powerlaw as pwl
+
+from matplotlib.font_manager import FontProperties
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from pylab import setp
+from scipy import stats
 
 import logger as my_logger
 
 logger = my_logger.get_logger('random_network')
 TS = str(time.time())
-PLOTS_FOLDER = "plots/"
+PLOTS_FOLDER = "../plots/"
+CONFIG_FOLDER = "../config/"
+CONFIG_FILE = CONFIG_FOLDER + "config.yml"
+OUTPUT_FOLDER = '../output/'
 
 
 def readconf(file):
@@ -58,7 +66,7 @@ def generate_erdos_reneye_network(n=100, k=4.0, save=False):
     logger.debug(ernetwork.degree())
     if save:
         nx.draw(ernetwork, with_labels=True, font_weight='bold')
-        plt.savefig(PLOTS_FOLDER + "ernetwork_graph_" + TS + ".png")
+        plt.savefig(PLOTS_FOLDER + TS +"_ernetwork_graph.png")
 
     return ernetwork
 
@@ -86,7 +94,7 @@ def generate_barabasi_albert_network(n=100, edges=4, save=False):
         current_node += 1
     if save:
         nx.draw(banetwork, with_labels=True, font_weight='bold')
-        plt.savefig(PLOTS_FOLDER + "banetwork_graph_" + TS + ".png")
+        plt.savefig(PLOTS_FOLDER + TS +"_banetwork_graph.png")
 
     return banetwork
 
@@ -162,8 +170,10 @@ def fit_normal_curve(network):
     degree_sequence = sorted([d for n, d in network.degree()], reverse=True)
     data = np.array(degree_sequence)
     # Statistics
-    mean = r"$\mu=" + str("{0:.2f}".format(data.mean())) + "$"
-    std = r"$\sigma=" + str("{0:.2f}".format(data.std())) + "$"
+    mean = data.mean()
+    smean = r"$\mu=" + str("{0:.2f}".format(mean)) + "$"
+    std = data.std()
+    sstd = r"$\sigma=" + str("{0:.2f}".format(std)) + "$"
 
     sns.set_context("paper")
     sns.set_style("whitegrid")
@@ -181,10 +191,13 @@ def fit_normal_curve(network):
     fig.tick_params(labelsize=14, labelcolor="black")
     # Set legends
     fig.legend(
-        labels=['Normal curve fitted, '+mean + ' '+std, 'Degree distrubution']
+        labels=['Normal curve fitted, ' + smean + ' ' + sstd,
+                'Degree distrubution']
     )
 
     plt.show()
+
+    return float(mean), float(std)
 
 
 def fit_exp_curve(network):
@@ -195,7 +208,8 @@ def fit_exp_curve(network):
     # Statistics
     loc, scale = stats.expon.fit(degree_sequence)
     logger.info("loc = %f, scale = %f" % (loc, scale))
-    lam = r"$\lambda=" + str("{0:.2f}".format(1.0/scale)) + "$"
+    lam = 1.0/scale
+    strlam = r"$\lambda=" + str("{0:.2f}".format(lam)) + "$"
 
     sns.set_context("paper")
     sns.set_style("whitegrid")
@@ -213,9 +227,11 @@ def fit_exp_curve(network):
     fig.tick_params(labelsize=14, labelcolor="black")
     # Set legends
     fig.legend(
-        labels=['Exponential curve fitted ' + lam, 'Degree distribution'])
+        labels=['Exponential curve fitted ' + strlam, 'Degree distribution'])
 
     plt.show()
+
+    return float(lam)
 
 
 def fit_least_square_curve(network):
@@ -243,8 +259,6 @@ def fit_least_square_curve(network):
 
     plt.plot(deg, m*deg + c, 'r')
 
-    # remove the top and right line in graph
-    # sns.despine()
     # Set the Title of the graph from here
     fig.axes.set_title('Degree distribution ', size=12)
     # Set the xlabel of the graph from here
@@ -257,6 +271,8 @@ def fit_least_square_curve(network):
     fig.legend(labels=['Least square curve fitted', 'Degree distrubution'])
 
     plt.show()
+
+    return float(m), float(c)
 
 
 def plot_cumulative_dist(network):
@@ -290,8 +306,6 @@ def plot_cumulative_dist(network):
 
     plt.plot(deg, m*deg + c, 'r')
 
-    # remove the top and right line in graph
-    # sns.despine()
     # Set the Title of the graph from here
     fig.axes.set_title('Cumulative Degree distribution ', size=12)
     # Set the xlabel of the graph from here
@@ -306,17 +320,108 @@ def plot_cumulative_dist(network):
     plt.show()
 
 
+def fit_power_law(network):
+    """
+    """
+    panel_label_font = FontProperties().copy()
+    panel_label_font.set_weight("bold")
+    panel_label_font.set_size(10.0)
+    panel_label_font.set_family("sans-serif")
+
+    units = "Barabasi-Albert network"
+
+    fig = plt.figure(figsize=(8, 11))
+    degree_sequence = sorted([d for n, d in network.degree()], reverse=True)
+    data = np.array(degree_sequence)
+
+    annotate_coord = (0.5, 1.1)
+    ax1 = fig.add_subplot(4, 3, 1)
+    x, y = pwl.pdf(data, linear_bins=True)
+    ind = y > 0
+    y = y[ind]
+    x = x[:-1]
+    x = x[ind]
+
+    # First plot
+    ax1.scatter(x, y, color='r', s=.5)
+    pwl.plot_pdf(data[data > 0], ax=ax1, color='b', linewidth=2)
+
+    setp(ax1.get_yticklabels(), visible=True)
+
+    ax1.annotate(
+        "A", annotate_coord, xycoords="axes fraction",
+        fontproperties=panel_label_font
+    )
+    ax1.set_ylabel(u"p(X)")  # (10^n)")
+
+    ax1in = inset_axes(ax1, width="30%", height="30%", loc=3)
+    ax1in.hist(data, density=True, color='b')
+    ax1in.set_xticks([])
+    ax1in.set_yticks([])
+
+    # Second plot
+    ax2 = fig.add_subplot(4, 3, 2, sharex=ax1)
+    pwl.plot_pdf(data, ax=ax2, color='b', linewidth=2)
+    fit = pwl.Fit(data, xmin=1, discrete=True)
+    fit.power_law.plot_pdf(ax=ax2, linestyle=':', color='g')
+    p = fit.power_law.pdf()
+
+    ax2.set_xlim(ax1.get_xlim())
+
+    fit = pwl.Fit(data, discrete=True)
+    fit.power_law.plot_pdf(ax=ax2, linestyle='--', color='g')
+
+    setp(ax2.get_yticklabels(), visible=False)
+
+    ax2.annotate(
+        "B", annotate_coord, xycoords="axes fraction",
+        fontproperties=panel_label_font
+    )
+
+    ax2.set_xlabel(units)
+
+    # Third plot
+    ax3 = fig.add_subplot(4, 3, 3)  # , sharex=ax1)#, sharey=ax2)
+    # Fitting maximum likelihood
+    fit.power_law.plot_pdf(ax=ax3, linestyle='--', color='g')
+    alpha = fit.power_law.alpha
+    sigma = fit.power_law.sigma
+    logger.info("Alpha = %f, Sigma = %f" % (alpha, sigma))
+    fit.exponential.plot_pdf(ax=ax3, linestyle='--', color='r')
+    fit.plot_pdf(ax=ax3, color='b', linewidth=2)
+    # Comparing
+    R, p = fit.distribution_compare('power_law', 'exponential')
+    logger.info("R = %f, p = %f" % (R, p))
+
+    setp(ax3.get_yticklabels(), visible=False)
+
+    ax3.set_ylim(ax2.get_ylim())
+    ax3.set_xlim(ax1.get_xlim())
+
+    ax3.annotate(
+        "C", annotate_coord, xycoords="axes fraction",
+        fontproperties=panel_label_font
+    )
+
+    plt.show()
+
+    return float(alpha), float(sigma), float(R), float(p)
+
+
 def initialize():
     """
     """
     # Creating plots folder if it doesn't exist
-    if not os.path.exists("plots/"):
-        os.makedirs("plots/")
+    if not os.path.exists(PLOTS_FOLDER):
+        os.makedirs(PLOTS_FOLDER)
+    # Create output folder if it doesn't exist
+    if not os.path.exists(OUTPUT_FOLDER):
+        os.makedirs(OUTPUT_FOLDER)
     # Reading conf and args
     ap = argparse.ArgumentParser(description='Generate networks')
     ap.add_argument(
         "-c", "--config", required=False, help="Configuration file (yml)",
-        nargs='?', const=str, type=str, default="config.yml", dest="config"
+        nargs='?', const=str, type=str, default=CONFIG_FILE, dest="config"
     )
     ap.add_argument(
         "-t", "--test", required=False, help="Test run",
@@ -341,6 +446,8 @@ def main():
     """
     """
     args, conf = initialize()
+    output = dict()
+
     if "ernetwork" == args.network or "all" == args.network:
         ernconf = conf['erdos_renye_net']
         np.random.seed(ernconf['randseed'])
@@ -353,7 +460,10 @@ def main():
             generate_erdos_reneye_network() if args.test else \
             generate_erdos_reneye_network(ernconf['N'], ernconf['K'])
         plot_degree_dist(ernetwork)
-        fit_normal_curve(ernetwork)
+        mean, std = fit_normal_curve(ernetwork)
+        # Save to output file
+        output["erdos_renye_net"] = dict(normal_fit=dict(mean=mean, std=std))
+
     if "banetwork" == args.network or "all" == args.network:
         banconf = conf['barabasi_albert_net']
         np.random.seed(banconf['randseed'])
@@ -366,10 +476,21 @@ def main():
             generate_barabasi_albert_network() if args.test else \
             generate_barabasi_albert_network(banconf['N'], banconf['edges'])
         plot_degree_dist(banetwork)
-        fit_exp_curve(banetwork)
+        lam = fit_exp_curve(banetwork)
         plot_degree_dist_log_log(banetwork)
-        fit_least_square_curve(banetwork)
+        c, m = fit_least_square_curve(banetwork)
         plot_cumulative_dist(banetwork)
+        alpha, sigma, R, p = fit_power_law(banetwork)
+        # Save to output file
+        output["barabasi_albert_net"] = dict(
+            expfit=dict(lambd=lam),
+            lsquarefit=dict(c=c, m=m),
+            maxlikelihoodfit=dict(alpha=alpha, sigma=sigma),
+            mlf_exp_comparison=dict(R=R, p=p)
+        )
+
+    with open(OUTPUT_FOLDER + TS + '_data.yml', 'w+') as outfile:
+        yaml.dump(output, outfile, default_flow_style=False)
 
 
 if __name__ == "__main__":

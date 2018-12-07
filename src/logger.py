@@ -5,6 +5,9 @@ import logging
 import os
 import yaml
 
+LOGS_FOLDER = "../logs/"
+CONFIG_FOLDER = "../config/"
+CONFIG_FILE =  CONFIG_FOLDER + "config.yml"
 
 def get_logger(logger_name='main'):
 
@@ -13,12 +16,12 @@ def get_logger(logger_name='main'):
         return logger
     
     # Creating logs folder if doesn't exist
-    log_file = os.path.join("logs/", '{}.log'.format(logger_name))
-    if not os.path.exists("logs/"):
-        os.makedirs("logs/")
+    log_file = os.path.join(LOGS_FOLDER, '{}.log'.format(logger_name))
+    if not os.path.exists(LOGS_FOLDER):
+        os.makedirs(LOGS_FOLDER)
 
     # Reading the configuration file
-    with open("config.yml", 'r') as ymlfile:
+    with open(CONFIG_FILE, 'r') as ymlfile:
         conf = yaml.load(ymlfile)
     
     # Setting up the logger
