@@ -66,7 +66,7 @@ def generate_erdos_reneye_network(n=100, k=4.0, save=False):
     logger.debug(ernetwork.degree())
     if save:
         nx.draw(ernetwork, with_labels=True, font_weight='bold')
-        plt.savefig(PLOTS_FOLDER + TS +"_ernetwork_graph.png")
+        plt.savefig(PLOTS_FOLDER + TS + "_ernetwork_graph.png")
 
     return ernetwork
 
@@ -94,7 +94,7 @@ def generate_barabasi_albert_network(n=100, edges=4, save=False):
         current_node += 1
     if save:
         nx.draw(banetwork, with_labels=True, font_weight='bold')
-        plt.savefig(PLOTS_FOLDER + TS +"_banetwork_graph.png")
+        plt.savefig(PLOTS_FOLDER + TS + "_banetwork_graph.png")
 
     return banetwork
 
@@ -408,6 +408,64 @@ def fit_power_law(network):
     return float(alpha), float(sigma), float(R), float(p)
 
 
+def play_prisoners_dilemma(net, T=0.05, R=1, P=0, S=-0.1, rounds=10):
+    """
+    """
+    logger.info("Starting playing prisonners dilemma")
+    start_time = time.time()
+
+    nx.set_node_attributes(net, 0.0, "payoff")
+    nx.set_node_attributes(net, 0, "action")
+    rnd = 1
+    level_cooperation_per_round = list()
+    actions = [0, 1]  # Defect = 0, Cooperate = 1
+
+    def payoff(node, neighbor):
+        """ Payoff matrix """
+        payoff_mat = [[(P, P), (T, S)],
+                      [(S, T), (R, R)]]
+        a1 = net.node[node]['action']
+        a2 = net.node[neighbor]['action']
+        return payoff_mat[a1][a2]
+
+    def probability_replicate(node, randneighbor):
+        """ Compute the probability of replicate action for node """
+        wi = net.node[node]['payoff']
+        wj = net.node[randneighbor]['payoff']
+        kmax = max(net.degree(node), net.degree(randneighbor))
+        dmax = max(T, R) - min(S, P)
+        return (wj-wi)/(kmax*dmax)
+
+    while rnd <= rounds:
+        for node in net.nodes():
+            if rnd == 1:
+                net.node[node]['action'] = np.random.choice(actions)
+            elif len(list(net.neighbors(node))) > 0:
+                ranneighbor = np.random.choice(list(net.neighbors(node)))
+                p = probability_replicate(node, ranneighbor)
+                # Evaluate probability of node
+                if np.random.random() < p:
+                    net.node[node]['action'] = net.node[ranneighbor]['action']
+        # Computing payoff
+        for node in net.nodes():
+            for neighbor in net.neighbors(node):
+                if node < neighbor:
+                    node_pay, neighbor_pay = payoff(node, neighbor)
+                    net.node[node]['payoff'] += node_pay
+                    net.node[neighbor]['payoff'] += neighbor_pay
+
+        actions = nx.get_node_attributes(net, 'action')
+        cooperation = sum(actions.values())
+        level_cooperation_per_round.append(cooperation)
+        logger.info("Portion of cooperation in round %d: %d" %
+                    (rnd, cooperation))
+        rnd += 1
+
+    logger.info("The simulation took - %s sec -" % (time.time() - start_time))
+
+    return level_cooperation_per_round
+
+
 def initialize():
     """
     """
@@ -461,8 +519,22 @@ def main():
             generate_erdos_reneye_network(ernconf['N'], ernconf['K'])
         plot_degree_dist(ernetwork)
         mean, std = fit_normal_curve(ernetwork)
+        # Play prisonners dilemma
+        simdict = dict()
+        tempatation = {0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9}
+        simulations = 10
+        for s in range(simulations):
+            coopbytemp = dict()
+            for t in tempatation:
+                cooperation_per_round = play_prisoners_dilemma(ernetwork, T=t)
+                coopbytemp['cooperation_T='+str(t)] = \
+                    {'iteration_' + str(i): int(c)
+                    for i, c in enumerate(cooperation_per_round)}
+            simdict["simulation_"+str(s)] = coopbytemp
         # Save to output file
-        output["erdos_renye_net"] = dict(normal_fit=dict(mean=mean, std=std))
+        output["erdos_renye_net"] = dict(
+            a_normal_fit=dict(mean=mean, std=std), b_IDP=simdict
+        )
 
     if "banetwork" == args.network or "all" == args.network:
         banconf = conf['barabasi_albert_net']
@@ -481,12 +553,25 @@ def main():
         c, m = fit_least_square_curve(banetwork)
         plot_cumulative_dist(banetwork)
         alpha, sigma, R, p = fit_power_law(banetwork)
+        # Play prisonners dilemma
+        simdict = dict()
+        tempatation = {0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9}
+        simulations = 10
+        for s in range(simulations):
+            coopbytemp = dict()
+            for t in tempatation:
+                cooperation_per_round = play_prisoners_dilemma(banetwork, T=t)
+                coopbytemp['cooperation_T='+str(t)] = \
+                    {'iteration_' + str(i): int(c)
+                    for i, c in enumerate(cooperation_per_round)}
+                simdict["simulation_"+str(s)] = coopbytemp
         # Save to output file
         output["barabasi_albert_net"] = dict(
-            expfit=dict(lambd=lam),
-            lsquarefit=dict(c=c, m=m),
-            maxlikelihoodfit=dict(alpha=alpha, sigma=sigma),
-            mlf_exp_comparison=dict(R=R, p=p)
+            a_expfit=dict(lambd=lam),
+            b_lsquarefit=dict(c=c, m=m),
+            c_maxlikelihoodfit=dict(alpha=alpha, sigma=sigma),
+            d_mlf_exp_comparison=dict(R=R, p=p),
+            f_IPD=simdict
         )
 
     with open(OUTPUT_FOLDER + TS + '_data.yml', 'w+') as outfile:
