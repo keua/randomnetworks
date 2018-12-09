@@ -2,6 +2,11 @@ erdos_renye_net:
     N: 10000
     K: 4.0
     randseed: 7454
+    ipd:
+        rounds : 100
+        temptation: {1.05, 1.1, 1.15, 1.2,1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9}
+        simulations: 10
+        parallel: 8
 logging:
     loggformat: '%(asctime)s %(name)s [%(levelname)s] %(message)s'
     logglevel: 'INFO'

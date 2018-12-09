@@ -11,6 +11,7 @@ import itertools
 import seaborn as sns
 import powerlaw as pwl
 
+import multiprocessing as mp
 from matplotlib.font_manager import FontProperties
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from pylab import setp
@@ -422,8 +423,8 @@ def play_prisoners_dilemma(net, T=0.05, R=1, P=0, S=-0.1, rounds=10):
 
     def payoff(node, neighbor):
         """ Payoff matrix """
-        payoff_mat = [[(P, P), (T, S)],
-                      [(S, T), (R, R)]]
+        payoff_mat = [[P, T],
+                      [S, R]]
         a1 = net.node[node]['action']
         a2 = net.node[neighbor]['action']
         return payoff_mat[a1][a2]
@@ -448,11 +449,10 @@ def play_prisoners_dilemma(net, T=0.05, R=1, P=0, S=-0.1, rounds=10):
                     net.node[node]['action'] = net.node[ranneighbor]['action']
         # Computing payoff
         for node in net.nodes():
+            net.node[node]['payoff'] = 0
             for neighbor in net.neighbors(node):
-                if node < neighbor:
-                    node_pay, neighbor_pay = payoff(node, neighbor)
-                    net.node[node]['payoff'] += node_pay
-                    net.node[neighbor]['payoff'] += neighbor_pay
+                node_pay = payoff(node, neighbor)
+                net.node[node]['payoff'] += node_pay
 
         actions = nx.get_node_attributes(net, 'action')
         cooperation = sum(actions.values())
@@ -460,6 +460,7 @@ def play_prisoners_dilemma(net, T=0.05, R=1, P=0, S=-0.1, rounds=10):
         logger.info("Portion of cooperation in round %d: %d" %
                     (rnd, cooperation))
         rnd += 1
+        # nx.set_node_attributes(net, 0.0, "payoff")
 
     logger.info("The simulation took - %s sec -" % (time.time() - start_time))
 
@@ -521,19 +522,36 @@ def main():
         mean, std = fit_normal_curve(ernetwork)
         # Play prisonners dilemma
         simdict = dict()
-        tempatation = {0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9}
-        simulations = 10
+        rounds = ernconf['ipd']['rounds']
+        tempatation = ernconf['ipd']['temptation']
+        simulations = ernconf['ipd']['simulations']
+        results = []
+        pool = mp.Pool(processes=ernconf['ipd']['parallel'])
         for s in range(simulations):
             coopbytemp = dict()
             for t in tempatation:
-                cooperation_per_round = play_prisoners_dilemma(ernetwork, T=t)
+                results.append(
+                    pool.apply_async(
+                        play_prisoners_dilemma,
+                        (ernetwork,), dict(T=t, rounds=rounds)
+                    )
+                )
+        pool.close()
+        pool.join()
+
+        ct = 0
+        for s in range(simulations):
+            coopbytemp = dict()
+            for t in tempatation:
                 coopbytemp['cooperation_T='+str(t)] = \
-                    {'iteration_' + str(i): int(c)
-                    for i, c in enumerate(cooperation_per_round)}
-            simdict["simulation_"+str(s)] = coopbytemp
+                    {'iteration_' + str(i).zfill(2): int(c)
+                    for i, c in enumerate(results[ct].get())}
+                ct+=1
+            simdict["simulation_"+str(s).zfill(2)] = coopbytemp
+            
         # Save to output file
         output["erdos_renye_net"] = dict(
-            a_normal_fit=dict(mean=mean, std=std), b_IDP=simdict
+           a_normal_fit=dict(mean=mean, std=std), b_IDP=simdict
         )
 
     if "banetwork" == args.network or "all" == args.network:
@@ -555,16 +573,34 @@ def main():
         alpha, sigma, R, p = fit_power_law(banetwork)
         # Play prisonners dilemma
         simdict = dict()
-        tempatation = {0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9}
-        simulations = 10
+        rounds = banconf['ipd']['rounds']
+        tempatation = banconf['ipd']['temptation']
+        simulations = banconf['ipd']['simulations']
+        # Specify here as many processes as your processor allows!
+        pool = mp.Pool(processes=banconf['ipd']['parallel'])
+        results = []
         for s in range(simulations):
             coopbytemp = dict()
             for t in tempatation:
-                cooperation_per_round = play_prisoners_dilemma(banetwork, T=t)
+                results.append(
+                    pool.apply_async(
+                        play_prisoners_dilemma,
+                        (banetwork,), dict(T=t, rounds=rounds)
+                    )
+                )
+        pool.close()
+        pool.join()
+
+        ct = 0
+        for s in range(simulations):
+            coopbytemp = dict()
+            for t in tempatation:
                 coopbytemp['cooperation_T='+str(t)] = \
-                    {'iteration_' + str(i): int(c)
-                    for i, c in enumerate(cooperation_per_round)}
-                simdict["simulation_"+str(s)] = coopbytemp
+                    {'iteration_' + str(i).zfill(2): int(c)
+                    for i, c in enumerate(results[ct].get())}
+                ct+=1
+            simdict["simulation_"+str(s).zfill(2)] = coopbytemp
+
         # Save to output file
         output["barabasi_albert_net"] = dict(
             a_expfit=dict(lambd=lam),
