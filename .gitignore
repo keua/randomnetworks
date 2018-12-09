@@ -105,3 +105,6 @@ venv.bak/
 
 # plots
 plots/*
+
+# output
+output/*
