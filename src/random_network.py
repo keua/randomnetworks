@@ -86,7 +86,7 @@ def generate_barabasi_albert_network(n=100, edges=4, save=False):
         # Connect the new node
         prob = [d[1] / degreesum for d in banetwork.degree()]
         neighbors = np.random.choice(
-            list(banetwork.nodes()), p=prob, size=4, replace=False
+            list(banetwork.nodes()), p=prob, size=edges, replace=False
         )
         for neighbor in neighbors:
             banetwork.add_edge(current_node, neighbor)
@@ -412,7 +412,7 @@ def fit_power_law(network):
 def play_prisoners_dilemma(net, T=0.05, R=1, P=0, S=-0.1, rounds=10):
     """
     """
-    logger.info("Starting playing prisonners dilemma")
+    logger.debug("Starting playing prisonners dilemma")
     start_time = time.time()
 
     nx.set_node_attributes(net, 0.0, "payoff")
@@ -449,7 +449,7 @@ def play_prisoners_dilemma(net, T=0.05, R=1, P=0, S=-0.1, rounds=10):
                     net.node[node]['action'] = net.node[ranneighbor]['action']
         # Computing payoff
         for node in net.nodes():
-            net.node[node]['payoff'] = 0
+            net.node[node]['payoff'] = 0.0
             for neighbor in net.neighbors(node):
                 node_pay = payoff(node, neighbor)
                 net.node[node]['payoff'] += node_pay
@@ -457,10 +457,9 @@ def play_prisoners_dilemma(net, T=0.05, R=1, P=0, S=-0.1, rounds=10):
         actions = nx.get_node_attributes(net, 'action')
         cooperation = sum(actions.values())
         level_cooperation_per_round.append(cooperation)
-        logger.info("Portion of cooperation in round %d: %d" %
+        logger.debug("Portion of cooperation in round %d: %d" %
                     (rnd, cooperation))
         rnd += 1
-        # nx.set_node_attributes(net, 0.0, "payoff")
 
     logger.info("The simulation took - %s sec -" % (time.time() - start_time))
 
@@ -544,10 +543,10 @@ def main():
             coopbytemp = dict()
             for t in tempatation:
                 coopbytemp['cooperation_T='+str(t)] = \
-                    {'iteration_' + str(i).zfill(2): int(c)
+                    {'iteration_' + str(i).zfill(3): int(c)
                     for i, c in enumerate(results[ct].get())}
                 ct+=1
-            simdict["simulation_"+str(s).zfill(2)] = coopbytemp
+            simdict["simulation_"+str(s).zfill(3)] = coopbytemp
             
         # Save to output file
         output["erdos_renye_net"] = dict(
@@ -596,10 +595,10 @@ def main():
             coopbytemp = dict()
             for t in tempatation:
                 coopbytemp['cooperation_T='+str(t)] = \
-                    {'iteration_' + str(i).zfill(2): int(c)
+                    {'iteration_' + str(i).zfill(3): int(c)
                     for i, c in enumerate(results[ct].get())}
                 ct+=1
-            simdict["simulation_"+str(s).zfill(2)] = coopbytemp
+            simdict["simulation_"+str(s).zfill(3)] = coopbytemp
 
         # Save to output file
         output["barabasi_albert_net"] = dict(
