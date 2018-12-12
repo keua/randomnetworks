@@ -175,11 +175,15 @@ def fit_normal_curve(network):
     smean = r"$\mu=" + str("{0:.2f}".format(mean)) + "$"
     std = data.std()
     sstd = r"$\sigma=" + str("{0:.2f}".format(std)) + "$"
+    k, p = stats.mstats.normaltest(degree_sequence)
+
+    logger.info("k = %f, p = %f" % (k, p))
 
     sns.set_context("paper")
     sns.set_style("whitegrid")
     fig = sns.distplot(
-        degree_sequence, fit=stats.norm, kde=False, fit_kws={'color': 'red'}
+        degree_sequence, fit=stats.norm, kde=False, hist=False,
+        fit_kws={'color': 'red'}
     )
 
     # Set the Title of the graph from here
@@ -457,8 +461,7 @@ def play_prisoners_dilemma(net, T=0.05, R=1, P=0, S=-0.1, rounds=10):
         actions = nx.get_node_attributes(net, 'action')
         cooperation = sum(actions.values())
         level_cooperation_per_round.append(cooperation)
-        logger.debug("Portion of cooperation in round %d: %d" %
-                    (rnd, cooperation))
+        logger.debug("Cooperators in round %d: %d" % (rnd, cooperation))
         rnd += 1
 
     logger.info("The simulation took - %s sec -" % (time.time() - start_time))
@@ -544,13 +547,13 @@ def main():
             for t in tempatation:
                 coopbytemp['cooperation_T='+str(t)] = \
                     {'iteration_' + str(i).zfill(3): int(c)
-                    for i, c in enumerate(results[ct].get())}
-                ct+=1
+                     for i, c in enumerate(results[ct].get())}
+                ct += 1
             simdict["simulation_"+str(s).zfill(3)] = coopbytemp
-            
+
         # Save to output file
         output["erdos_renye_net"] = dict(
-           a_normal_fit=dict(mean=mean, std=std), b_IDP=simdict
+            a_normal_fit=dict(mean=mean, std=std), b_IDP=simdict
         )
 
     if "banetwork" == args.network or "all" == args.network:
@@ -596,8 +599,8 @@ def main():
             for t in tempatation:
                 coopbytemp['cooperation_T='+str(t)] = \
                     {'iteration_' + str(i).zfill(3): int(c)
-                    for i, c in enumerate(results[ct].get())}
-                ct+=1
+                     for i, c in enumerate(results[ct].get())}
+                ct += 1
             simdict["simulation_"+str(s).zfill(3)] = coopbytemp
 
         # Save to output file
